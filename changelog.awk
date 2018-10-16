@@ -28,22 +28,9 @@ BEGIN {
 	# %h: short hash
 
 	i = 1
-	while ("git log --date=short --pretty='%D|%s|%H|%h|%cd|%an' " REVISION_RANGE | getline) {
+	while ("git log --date=short --pretty='%D|%s|%H|%h|%cd|%an' --reverse " REVISION_RANGE | getline) {
 		LINES[i] = $0
 		i++
-	}
-
-	# Reverse array
-
-	i--
-	j = 1
-	while (j < i) {
-		temp = LINES[j]
-		LINES[j] = LINES[i]
-		LINES[i] = temp
-
-		i--
-		j++
 	}
 
 	# Iterate over array and store output in chronogical order
