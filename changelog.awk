@@ -3,22 +3,30 @@ BEGIN {
 	REPO_URL = getRepoURL()
 	# Prefixes that determine whether a commit will be printed
 
-	CHANGELOG_REGEX = "^(changelog|fix|hotfix|docs|chore|feat|feature|refactor|update): "
+	JIRA_TICKET = "[a-zA-z]+-[0-9]+"
+	BUGFIX_INF = "fix|fixed|hotfix|hotFix"
+	UPDATE_INF = "chore|test|refactoring|update|ci"
+	FEAT_INF = "feat|feature|add|added"
+	DOCS_INF = "changelog|docs|doc"
+
+	CHANGELOG_REGEX = JIRA_TICKET "[:; ]+.*(" BUGFIX_INF "|"  FEAT_INF "|" UPDATE_INF "doc|docs)[:; ]+"
 	FS="|"
 
 	# Prefixes used to classify commits
 
-	FEATURE_REGEX = "^(feat|feature): "
-	DOCS_REGEX = "^(changelog|docs): "
-	BUG_FIX_REGEX = "^(fix|hotfix): "
-	UPDATE_REGEX = "^(chore|refactor|update): "
-
+	FEATURE_REGEX = "(" FEAT_INF ")[: ]?"
+	DOCS_REGEX    = "(" DOCS_INF ")[: ]?"
+	BUG_FIX_REGEX = "(" BUGFIX_INF ")[: ]?"
+	UPDATE_REGEX  = "(" UPDATE_INF ")[: ]?"
 
 	FEATURE_COUNT = 0
 	BUG_FIX_COUNT = 0
 	DOCS_COUNT = 0
 	UPDATE_COUNT = 0
 	OUTPUT_COUNT = 0
+
+	# Skip commits with matched message
+	MSG_SKIP_REGEX = "^(Merge branch.*|jenkins produced Build_[0-9]+|update|cleanup|ready_to_build||)$"
 
 	# Get git log and store in array
 
@@ -28,22 +36,9 @@ BEGIN {
 	# %h: short hash
 
 	i = 1
-	while ("git log --date=short --pretty='%D|%s|%H|%h|%cd|%an' " REVISION_RANGE | getline) {
+	while ("git log --date=short --pretty='%D|%s|%H|%h|%cd|%an' --no-merges --reverse " REVISION_RANGE  | getline) {
 		LINES[i] = $0
 		i++
-	}
-
-	# Reverse array
-
-	i--
-	j = 1
-	while (j < i) {
-		temp = LINES[j]
-		LINES[j] = LINES[i]
-		LINES[i] = temp
-
-		i--
-		j++
 	}
 
 	# Iterate over array and store output in chronogical order
@@ -115,7 +110,7 @@ function printOutput() {
 	# Print stored output in reverse order
 
 	while (OUTPUT_COUNT) {
-		printf(OUTPUT[--OUTPUT_COUNT])
+		print(OUTPUT[--OUTPUT_COUNT])
 	}
 }
 function printFeatures() {
@@ -163,17 +158,31 @@ function printUpdates() {
 }
 
 function classifyCommit(message, longHash, shortHash, date, name) {
+	if ( name == "Jenkins Agent" ) { return }
+	if ( match(message, MSG_SKIP_REGEX) ) {
+		return
+	}
+	sub(" *ready_to_build[;: ]*", "", message)
+
 	if ( match(message, FEATURE_REGEX) ) {
 		FEATURES[FEATURE_COUNT++] = getCommitLine(message, longHash, shortHash, date, name)
+		return
 	}
 	if ( match(message, BUG_FIX_REGEX) ) {
 		BUG_FIXES[BUG_FIX_COUNT++] = getCommitLine(message, longHash, shortHash, date, name)
+		return
 	}
 	if ( match(message, DOCS_REGEX) ) {
 		DOCS[DOCS_COUNT++] = getCommitLine(message, longHash, shortHash, date, name)
+		return
 	}
 	if ( match(message, UPDATE_REGEX) ) {
 		UPDATES[UPDATE_COUNT++] = getCommitLine(message, longHash, shortHash, date, name)
+		return
+	}
+	if ( match(message, JIRA_TICKET) ) {
+		FEATURES[FEATURE_COUNT++] = getCommitLine(message, longHash, shortHash, date, name)
+		return
 	}
 }
 
